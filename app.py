@@ -16,7 +16,7 @@ from typing import Dict, List
 from collections import deque
 from pathlib import Path
 
-from flask import Flask, render_template, jsonify, send_file, abort, request
+from flask import Flask, render_template, jsonify, send_file, abort, request, redirect, url_for
 
 # ── local helpers ────────────────────────────────────────────────────────────
 from drive_utils import (
@@ -428,22 +428,8 @@ def bg_loop() -> None:
 # ── Flask routes ────────────────────────────────────────────────────────────
 @app.route("/")
 def index():
-    try:
-        booth_data = get_all_booth_status()
-        status = {
-            b["region"]: {
-                "in_use": b["in_use"],
-                "time_spent_minutes": round((b.get("time_spent_today") or 0) / 60, 2),
-                "door_closed": b.get("door_closed"),
-                "person_detected": b.get("person_detected"),
-                "last_updated": b.get("last_updated"),
-            }
-            for b in booth_data
-        }
-        return render_template("index.html", status=status, regions=REGIONS)
-    except Exception as e:
-        logger.error("Render index error: %s", e)
-        return f"Error: {e}", 500
+    """Redirect root URL to the dashboard."""
+    return redirect(url_for("dashboard"))
 
 @app.route("/dashboard")
 def dashboard():
