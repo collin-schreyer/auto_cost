@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rack Tracking Debug Tool</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 20px;
+            background: #f5f5f5;
+        }
+        
+        .debug-panel {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .debug-panel h2 {
+            color: #2c3e50;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+        
+        .test-button {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+            font-weight: bold;
+        }
+        
+        .test-button:hover {
+            background: #2980b9;
+        }
+        
+        .test-button.error {
+            background: #e74c3c;
+        }
+        
+        .test-button.success {
+            background: #27ae60;
+        }
+        
+        .result {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 10px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .result.error {
+            background: #ffebee;
+            border-color: #f44336;
+            color: #c62828;
+        }
+        
+        .result.success {
+            background: #e8f5e8;
+            border-color: #4caf50;
+            color: #2e7d32;
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .status-online {
+            background: #4caf50;
+        }
+        
+        .status-offline {
+            background: #f44336;
+        }
+        
+        .status-loading {
+            background: #ff9800;
+            animation: pulse 1s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .api-status {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin: 15px 0;
+        }
+        
+        .api-endpoint {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 5px;
+            border-left: 4px solid #3498db;
+        }
+        
+        .endpoint-name {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .endpoint-status {
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+        }
+        
+        .refresh-controls {
+            background: #e3f2fd;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        
+        .logs-container {
+            max-height: 400px;
+            overflow-y: auto;
+            background: #263238;
+            color: #ffffff;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85rem;
+        }
+        
+        .log-entry {
+            margin: 2px 0;
+            padding: 2px 0;
+        }
+        
+        .log-error {
+            color: #ff5252;
+        }
+        
+        .log-success {
+            color: #4caf50;
+        }
+        
+        .log-info {
+            color: #2196f3;
+        }
+        
+        .data-preview {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 10px;
+            margin: 10px 0;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        
+        .clear-logs {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔧 Rack Tracking Debug Tool</h1>
+    
+    <div class="debug-panel">
+        <h2>📡 API Endpoint Status</h2>
+        <div class="api-status" id="api-status">
+            <!-- Will be populated by JavaScript -->
+        </div>
+        <button class="test-button" onclick="checkAllEndpoints()">🔍 Test All Endpoints</button>
+    </div>
+    
+    <div class="debug-panel">
+        <h2>🔄 Manual Refresh Tests</h2>
+        <div class="refresh-controls">
+            <p><strong>Test each data source individually:</strong></p>
+            <button class="test-button" onclick="testGlobalRacks()">🌐 Test Global Racks</button>
+            <button class="test-button" onclick="testRackMovements()">📋 Test Rack Movements</button>
+            <button class="test-button" onclick="testRackSummary()">📊 Test Rack Summary</button>
+            <button class="test-button" onclick="testRackPositions()">📍 Test Rack Positions</button>
+            <button class="test-button" onclick="testRackEvents()">🎯 Test Rack Events</button>
+        </div>
+        
+        <div class="refresh-controls">
+            <p><strong>Simulate dashboard refreshes:</strong></p>
+            <button class="test-button" onclick="simulateTabSwitch()">🔄 Simulate Tab Switch</button>
+            <button class="test-button" onclick="simulateAutoRefresh()">⏰ Simulate Auto-Refresh</button>
+            <button class="test-button" onclick="simulateManualRefresh()">👆 Simulate Manual Refresh</button>
+        </div>
+    </div>
+    
+    <div class="debug-panel">
+        <h2>📊 Current Data State</h2>
+        <button class="test-button" onclick="showCurrentData()">📋 Show Current Data</button>
+        <button class="test-button" onclick="compareData()">🔍 Compare Data Sources</button>
+        <div id="data-display"></div>
+    </div>
+    
+    <div class="debug-panel">
+        <h2>🐛 Debug Logs</h2>
+        <button class="clear-logs" onclick="clearLogs()">Clear Logs</button>
+        <div class="logs-container" id="debug-logs">
+            <div class="log-entry log-info">Debug tool initialized. Click buttons above to start testing...</div>
+        </div>
+    </div>
+    
+    <div class="debug-panel">
+        <h2>🔧 Quick Fixes</h2>
+        <button class="test-button" onclick="checkDatabaseConnection()">🗄️ Check Database</button>
+        <button class="test-button" onclick="checkRackStateManager()">🏗️ Check State Manager</button>
+        <button class="test-button" onclick="testDataPipeline()">🔄 Test Data Pipeline</button>
+        <button class="test-button" onclick="resetRackCache()">🔄 Reset Cache</button>
+    </div>
+
+    <script>
+        // Debug logging system
+        const debugLogs = [];
+        
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = `[${timestamp}] ${message}`;
+            debugLogs.push({timestamp, message, type});
+            
+            const logsContainer = document.getElementById('debug-logs');
+            const logDiv = document.createElement('div');
+            logDiv.className = `log-entry log-${type}`;
+            logDiv.textContent = logEntry;
+            logsContainer.appendChild(logDiv);
+            logsContainer.scrollTop = logsContainer.scrollHeight;
+        }
+        
+        function clearLogs() {
+            debugLogs.length = 0;
+            document.getElementById('debug-logs').innerHTML = 
+                '<div class="log-entry log-info">Logs cleared. Ready for new tests...</div>';
+        }
+        
+        // API testing functions
+        const API_ENDPOINTS = {
+            'Global Racks': '/api/global-racks',
+            'Rack Movements': '/api/rack-movements?hours=4',
+            'Rack Summary': '/api/rack-summary',
+            'Rack Positions': '/api/rack-positions',
+            'Rack Events': '/api/rack-events',
+            'Booth Status': '/api/booth-status'
+        };
+        
+        async function testEndpoint(name, url) {
+            log(`Testing ${name}: ${url}`, 'info');
+            
+            try {
+                const startTime = Date.now();
+                const response = await fetch(url);
+                const endTime = Date.now();
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                const responseTime = endTime - startTime;
+                
+                log(`✅ ${name}: Success (${responseTime}ms, ${Array.isArray(data) ? data.length : Object.keys(data).length} items)`, 'success');
+                
+                updateEndpointStatus(name, 'online', `${responseTime}ms`);
+                return {success: true, data, responseTime};
+                
+            } catch (error) {
+                log(`❌ ${name}: Failed - ${error.message}`, 'error');
+                updateEndpointStatus(name, 'offline', error.message);
+                return {success: false, error: error.message};
+            }
+        }
+        
+        function updateEndpointStatus(name, status, details) {
+            const container = document.getElementById('api-status');
+            let endpoint = container.querySelector(`[data-endpoint="${name}"]`);
+            
+            if (!endpoint) {
+                endpoint = document.createElement('div');
+                endpoint.className = 'api-endpoint';
+                endpoint.setAttribute('data-endpoint', name);
+                container.appendChild(endpoint);
+            }
+            
+            endpoint.innerHTML = `
+                <div class="endpoint-name">${name}</div>
+                <div class="endpoint-status">
+                    <span class="status-indicator status-${status}"></span>
+                    ${details}
+                </div>
+            `;
+        }
+        
+        async function checkAllEndpoints() {
+            log('🔍 Starting comprehensive endpoint test...', 'info');
+            
+            const results = {};
+            for (const [name, url] of Object.entries(API_ENDPOINTS)) {
+                updateEndpointStatus(name, 'loading', 'Testing...');
+                results[name] = await testEndpoint(name, url);
+                
+                // Small delay between requests
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+            
+            const successCount = Object.values(results).filter(r => r.success).length;
+            const totalCount = Object.keys(results).length;
+            
+            log(`📊 Endpoint test complete: ${successCount}/${totalCount} endpoints working`, 
+                successCount === totalCount ? 'success' : 'error');
+            
+            return results;
+        }
+        
+        // Individual test functions
+        async function testGlobalRacks() {
+            log('🌐 Testing Global Racks endpoint...', 'info');
+            const result = await testEndpoint('Global Racks', '/api/global-racks');
+            
+            if (result.success) {
+                const racks = result.data;
+                log(`Found ${racks.length} global racks`, 'info');
+                
+                const activeRacks = racks.filter(r => r.status === 'active');
+                const inTransitRacks = racks.filter(r => r.current_camera === 'in_transit');
+                const generalLaborRacks = racks.filter(r => r.current_camera === 'general_labor');
+                const powderBoothRacks = racks.filter(r => r.current_camera === 'powder_booth');
+                
+                log(`  - Active: ${activeRacks.length}`, 'info');
+                log(`  - In Transit: ${inTransitRacks.length}`, 'info');
+                log(`  - General Labor: ${generalLaborRacks.length}`, 'info');
+                log(`  - Powder Booth: ${powderBoothRacks.length}`, 'info');
+                
+                // Show sample rack data
+                if (racks.length > 0) {
+                    log(`Sample rack: ${JSON.stringify(racks[0], null, 2)}`, 'info');
+                }
+            }
+            
+            return result;
+        }
+        
+        async function testRackMovements() {
+            log('📋 Testing Rack Movements endpoint...', 'info');
+            const result = await testEndpoint('Rack Movements', '/api/rack-movements?hours=4');
+            
+            if (result.success) {
+                const movements = result.data;
+                log(`Found ${movements.length} movements in last 4 hours`, 'info');
+                
+                if (movements.length > 0) {
+                    const recentMovements = movements.slice(0, 3);
+                    recentMovements.forEach((movement, index) => {
+                        log(`  Movement ${index + 1}: ${movement.global_rack_id} from ${movement.from_camera} to ${movement.to_camera}`, 'info');
+                    });
+                }
+            }
+            
+            return result;
+        }
+        
+        async function testRackSummary() {
+            log('📊 Testing Rack Summary endpoint...', 'info');
+            const result = await testEndpoint('Rack Summary', '/api/rack-summary');
+            
+            if (result.success) {
+                const summary = result.data;
+                log(`Summary timestamp: ${summary.timestamp}`, 'info');
+                log(`System status: ${summary.system_status}`, 'info');
+                
+                if (summary.general_labor) {
+                    log(`General Labor: ${summary.general_labor.total_racks} total racks`, 'info');
+                }
+                
+                if (summary.powder_booth) {
+                    log(`Powder Booth: ${summary.powder_booth.total_racks} total racks`, 'info');
+                }
+            }
+            
+            return result;
+        }
+        
+        async function testRackPositions() {
+            log('📍 Testing Rack Positions endpoint...', 'info');
+            const result = await testEndpoint('Rack Positions', '/api/rack-positions');
+            
+            if (result.success) {
+                const positions = result.data;
+                log(`Found ${positions.length} position records`, 'info');
+                
+                if (positions.length > 0) {
+                    const latest = positions[0];
+                    log(`Latest position: ${latest.camera_id}/${latest.rack_id} at ${latest.timestamp}`, 'info');
+                }
+            }
+            
+            return result;
+        }
+        
+        async function testRackEvents() {
+            log('🎯 Testing Rack Events endpoint...', 'info');
+            const result = await testEndpoint('Rack Events', '/api/rack-events');
+            
+            if (result.success) {
+                const events = result.data;
+                log(`Found ${events.length} event records`, 'info');
+                
+                if (events.length > 0) {
+                    const latest = events[0];
+                    log(`Latest event: ${latest.camera_id}/${latest.action} at ${latest.timestamp}`, 'info');
+                }
+            }
+            
+            return result;
+        }
+        
+        // Simulation functions
+        async function simulateTabSwitch() {
+            log('🔄 Simulating tab switch to rack tracking...', 'info');
+            
+            try {
+                // This simulates what happens when user clicks the rack tracking tab
+                log('Step 1: Fetching global racks...', 'info');
+                const globalRacksResult = await testGlobalRacks();
+                
+                log('Step 2: Fetching movements...', 'info');
+                const movementsResult = await testRackMovements();
+                
+                if (globalRacksResult.success && movementsResult.success) {
+                    log('✅ Tab switch simulation successful', 'success');
+                    
+                    // Show what the updateRackZones function would receive
+                    log('Data that would be passed to updateRackZones:', 'info');
+                    log(`  Global racks: ${globalRacksResult.data.length} items`, 'info');
+                    log(`  Movements: ${movementsResult.data.length} items`, 'info');
+                } else {
+                    log('❌ Tab switch simulation failed', 'error');
+                }
+                
+            } catch (error) {
+                log(`❌ Tab switch simulation error: ${error.message}`, 'error');
+            }
+        }
+        
+        async function simulateAutoRefresh() {
+            log('⏰ Simulating auto-refresh (15-second interval)...', 'info');
+            
+            // This simulates the setInterval function in the dashboard
+            for (let i = 1; i <= 3; i++) {
+                log(`Auto-refresh cycle ${i}/3`, 'info');
+                
+                const result = await testRackSummary();
+                if (result.success) {
+                    log(`  ✅ Cycle ${i}: Data fetched successfully`, 'success');
+                } else {
+                    log(`  ❌ Cycle ${i}: Failed to fetch data`, 'error');
+                }
+                
+                if (i < 3) {
+                    log('  Waiting 2 seconds for next cycle...', 'info');
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                }
+            }
+            
+            log('⏰ Auto-refresh simulation complete', 'info');
+        }
+        
+        async function simulateManualRefresh() {
+            log('👆 Simulating manual refresh button click...', 'info');
+            
+            try {
+                // This simulates the refreshRackData() function
+                log('Step 1: Setting loading state...', 'info');
+                
+                log('Step 2: Fetching all rack data in parallel...', 'info');
+                const startTime = Date.now();
+                
+                const [globalRacksResult, movementsResult] = await Promise.all([
+                    testGlobalRacks(),
+                    testRackMovements()
+                ]);
+                
+                const endTime = Date.now();
+                const totalTime = endTime - startTime;
+                
+                if (globalRacksResult.success && movementsResult.success) {
+                    log(`✅ Manual refresh successful (${totalTime}ms total)`, 'success');
+                    log('Step 3: Would update UI with new data...', 'info');
+                } else {
+                    log(`❌ Manual refresh failed (${totalTime}ms total)`, 'error');
+                }
+                
+            } catch (error) {
+                log(`❌ Manual refresh error: ${error.message}`, 'error');
+            }
+        }
+        
+        // Data analysis functions
+        async function showCurrentData() {
+            log('📋 Fetching current data state...', 'info');
+            
+            const dataDisplay = document.getElementById('data-display');
+            dataDisplay.innerHTML = '<div class="result">Loading current data...</div>';
+            
+            try {
+                const [globalRacks, movements, summary] = await Promise.all([
+                    fetch('/api/global-racks').then(r => r.json()),
+                    fetch('/api/rack-movements?hours=4').then(r => r.json()),
+                    fetch('/api/rack-summary').then(r => r.json())
+                ]);
+                
+                const dataHtml = `
+                    <div class="data-preview">
+                        <h4>Global Racks (${globalRacks.length} total)</h4>
+                        <pre>${JSON.stringify(globalRacks.slice(0, 2), null, 2)}</pre>
+                        ${globalRacks.length > 2 ? `<p>... and ${globalRacks.length - 2} more</p>` : ''}
+                    </div>
+                    
+                    <div class="data-preview">
+                        <h4>Recent Movements (${movements.length} total)</h4>
+                        <pre>${JSON.stringify(movements.slice(0, 2), null, 2)}</pre>
+                        ${movements.length > 2 ? `<p>... and ${movements.length - 2} more</p>` : ''}
+                    </div>
+                    
+                    <div class="data-preview">
+                        <h4>System Summary</h4>
+                        <pre>${JSON.stringify(summary, null, 2)}</pre>
+                    </div>
+                `;
+                
+                dataDisplay.innerHTML = dataHtml;
+                log('✅ Current data displayed', 'success');
+                
+            } catch (error) {
+                log(`❌ Error fetching current data: ${error.message}`, 'error');
+                dataDisplay.innerHTML = `<div class="result error">Error: ${error.message}</div>`;
+            }
+        }
+        
+        async function compareData() {
+            log('🔍 Comparing data consistency across endpoints...', 'info');
+            
+            try {
+                const [globalRacks, positions, events] = await Promise.all([
+                    fetch('/api/global-racks').then(r => r.json()),
+                    fetch('/api/rack-positions').then(r => r.json()),
+                    fetch('/api/rack-events').then(r => r.json())
+                ]);
+                
+                // Extract unique rack IDs from each source
+                const globalRackIds = new Set(globalRacks.map(r => r.rack_id));
+                const positionRackIds = new Set(positions.map(p => p.global_rack_id).filter(Boolean));
+                const eventRackIds = new Set(events.map(e => e.global_rack_id).filter(Boolean));
+                
+                log(`Global racks registry: ${globalRackIds.size} unique IDs`, 'info');
+                log(`Position records: ${positionRackIds.size} unique global IDs`, 'info');
+                log(`Event records: ${eventRackIds.size} unique global IDs`, 'info');
+                
+                // Check for inconsistencies
+                const orphanedPositions = [...positionRackIds].filter(id => !globalRackIds.has(id));
+                const orphanedEvents = [...eventRackIds].filter(id => !globalRackIds.has(id));
+                
+                if (orphanedPositions.length > 0) {
+                    log(`⚠️ Found ${orphanedPositions.length} position records with unknown global IDs: ${orphanedPositions.join(', ')}`, 'error');
+                }
+                
+                if (orphanedEvents.length > 0) {
+                    log(`⚠️ Found ${orphanedEvents.length} event records with unknown global IDs: ${orphanedEvents.join(', ')}`, 'error');
+                }
+                
+                if (orphanedPositions.length === 0 && orphanedEvents.length === 0) {
+                    log('✅ Data consistency check passed', 'success');
+                }
+                
+            } catch (error) {
+                log(`❌ Data comparison error: ${error.message}`, 'error');
+            }
+        }
+        
+        // System check functions
+        async function checkDatabaseConnection() {
+            log('🗄️ Checking database connection...', 'info');
+            
+            try {
+                // Try a simple query to check if database is responsive
+                const response = await fetch('/api/booth-status');
+                if (response.ok) {
+                    const data = await response.json();
+                    log(`✅ Database connection OK (returned ${data.length} booth records)`, 'success');
+                } else {
+                    log(`❌ Database connection failed: HTTP ${response.status}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ Database connection error: ${error.message}`, 'error');
+            }
+        }
+        
+        async function checkRackStateManager() {
+            log('🏗️ Checking rack state manager...', 'info');
+            
+            try {
+                const response = await fetch('/api/rack-detection-status');
+                if (response.ok) {
+                    const status = await response.json();
+                    log(`Rack detection status: ${status.setup_status}`, 'info');
+                    log(`Examples status: ${status.examples_status}`, 'info');
+                    
+                    if (status.total_issues > 0) {
+                        log(`⚠️ Found ${status.total_issues} issues with rack state manager`, 'error');
+                        status.issues?.forEach(issue => {
+                            log(`  - ${issue}`, 'error');
+                        });
+                    } else {
+                        log('✅ Rack state manager appears healthy', 'success');
+                    }
+                } else {
+                    log(`❌ Rack state manager check failed: HTTP ${response.status}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ Rack state manager error: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testDataPipeline() {
+            log('🔄 Testing complete data pipeline...', 'info');
+            
+            // Test the flow: positions -> global racks -> movements
+            try {
+                log('Step 1: Check recent rack positions...', 'info');
+                const positions = await fetch('/api/rack-positions?limit=10').then(r => r.json());
+                log(`Found ${positions.length} recent position records`, 'info');
+                
+                log('Step 2: Check global rack registry...', 'info');
+                const globalRacks = await fetch('/api/global-racks').then(r => r.json());
+                log(`Found ${globalRacks.length} global racks`, 'info');
+                
+                log('Step 3: Check movement correlation...', 'info');
+                const movements = await fetch('/api/rack-movements?hours=1').then(r => r.json());
+                log(`Found ${movements.length} movements in last hour`, 'info');
+                
+                // Check if recent positions are being correlated with global racks
+                if (positions.length > 0 && globalRacks.length > 0) {
+                    const recentPositionIds = positions.map(p => p.global_rack_id).filter(Boolean);
+                    const globalRackIds = globalRacks.map(r => r.rack_id);
+                    
+                    const correlatedCount = recentPositionIds.filter(id => globalRackIds.includes(id)).length;
+                    log(`Data correlation: ${correlatedCount}/${recentPositionIds.length} recent positions have global IDs`, 'info');
+                    
+                    if (correlatedCount === recentPositionIds.length) {
+                        log('✅ Data pipeline working correctly', 'success');
+                    } else {
+                        log('⚠️ Some position records not correlated with global racks', 'error');
+                    }
+                } else {
+                    log('⚠️ Insufficient data to test pipeline', 'error');
+                }
+                
+            } catch (error) {
+                log(`❌ Data pipeline test error: ${error.message}`, 'error');
+            }
+        }
+        
+        async function resetRackCache() {
+            log('🔄 Attempting to reset rack cache...', 'info');
+            
+            try {
+                // Try the cleanup endpoint to force a refresh
+                const response = await fetch('/admin/cleanup-rack-data', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({hours: 1}) // Clean up very recent data to force refresh
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    log('✅ Cache reset requested', 'success');
+                    log(`Result: ${JSON.stringify(result, null, 2)}`, 'info');
+                } else {
+                    log(`❌ Cache reset failed: HTTP ${response.status}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ Cache reset error: ${error.message}`, 'error');
+            }
+        }
+        
+        // Initialize the debug tool
+        window.addEventListener('load', function() {
+            log('🔧 Rack Tracking Debug Tool initialized', 'success');
+            log('Click the buttons above to start diagnosing issues', 'info');
+            
+            // Automatically check all endpoints on load
+            setTimeout(checkAllEndpoints, 1000);
+        });
+    </script>
+</body>
+</html>

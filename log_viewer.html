@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LLM Request/Response Log Viewer</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .controls {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .controls button {
+            background: #007cba;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        
+        .controls button:hover {
+            background: #005a87;
+        }
+        
+        .log-entry {
+            background: white;
+            margin-bottom: 15px;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .log-header {
+            background: #f8f9fa;
+            padding: 15px;
+            border-bottom: 1px solid #dee2e6;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .log-header:hover {
+            background: #e9ecef;
+        }
+        
+        .log-timestamp {
+            font-size: 0.9em;
+            color: #6c757d;
+        }
+        
+        .log-content {
+            padding: 15px;
+            display: none;
+        }
+        
+        .log-content.expanded {
+            display: block;
+        }
+        
+        .section {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 4px;
+            border-left: 4px solid #007cba;
+        }
+        
+        .section h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        
+        .json-display {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            white-space: pre-wrap;
+        }
+        
+        .status-success {
+            color: #28a745;
+            font-weight: bold;
+        }
+        
+        .status-error {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        
+        .status-warning {
+            color: #ffc107;
+            font-weight: bold;
+        }
+        
+        .filter-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        
+        .filter-controls input, .filter-controls select {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        
+        .no-logs {
+            text-align: center;
+            padding: 40px;
+            color: #6c757d;
+            background: white;
+            border-radius: 8px;
+        }
+        
+        .expand-all {
+            float: right;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 LLM Request/Response Log Viewer</h1>
+        
+        <div class="controls">
+            <div class="filter-controls">
+                <button onclick="loadLogs()">🔄 Refresh Logs</button>
+                <button onclick="clearDisplay()">🗑️ Clear Display</button>
+                <button onclick="toggleExpandAll()" class="expand-all">📖 Expand All</button>
+                
+                <select id="moduleFilter">
+                    <option value="">All Modules</option>
+                    <option value="action_detection">Action Detection</option>
+                    <option value="rack_detection">Rack Detection</option>
+                    <option value="lm_detection">LM Detection</option>
+                </select>
+                
+                <select id="typeFilter">
+                    <option value="">All Types</option>
+                    <option value="REQUEST">Requests</option>
+                    <option value="RESPONSE">Responses</option>
+                    <option value="PARSING">Parsing</option>
+                    <option value="ERROR">Errors</option>
+                </select>
+                
+                <input type="text" id="searchInput" placeholder="Search logs..." onkeyup="filterLogs()">
+                
+                <span id="logCount">0 entries</span>
+            </div>
+        </div>
+        
+        <div id="logContainer">
+            <div class="no-logs">
+                Click "Refresh Logs" to load the latest LLM interaction logs
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let allLogs = [];
+        let expandedAll = false;
+
+        async function loadLogs() {
+            try {
+                const response = await fetch('/api/llm-logs');
+                const logs = await response.json();
+                
+                allLogs = logs;
+                displayLogs(logs);
+                updateLogCount(logs.length);
+                
+                console.log(`Loaded ${logs.length} log entries`);
+            } catch (error) {
+                console.error('Failed to load logs:', error);
+                document.getElementById('logContainer').innerHTML = 
+                    '<div class="no-logs status-error">Failed to load logs. Make sure the server is running.</div>';
+            }
+        }
+
+        function displayLogs(logs) {
+            const container = document.getElementById('logContainer');
+            
+            if (logs.length === 0) {
+                container.innerHTML = '<div class="no-logs">No logs found matching your criteria</div>';
+                return;
+            }
+
+            container.innerHTML = logs.map((log, index) => `
+                <div class="log-entry" data-module="${log.module}" data-type="${log.type}">
+                    <div class="log-header" onclick="toggleLog(${index})">
+                        <span>
+                            <strong>${log.module.toUpperCase()}</strong> - ${log.type}
+                            ${log.status ? `<span class="status-${log.status}">[${log.status.toUpperCase()}]</span>` : ''}
+                        </span>
+                        <span class="log-timestamp">${new Date(log.timestamp).toLocaleString()}</span>
+                    </div>
+                    <div class="log-content" id="log-${index}">
+                        ${generateLogContent(log)}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function generateLogContent(log) {
+            let content = '';
+            
+            if (log.type === 'REQUEST') {
+                content += `
+                    <div class="section">
+                        <h3>🚀 Request Details</h3>
+                        <p><strong>Model:</strong> ${log.model || 'Unknown'}</p>
+                        <p><strong>Temperature:</strong> ${log.temperature || 'Unknown'}</p>
+                        <p><strong>Max Tokens:</strong> ${log.max_tokens || 'Unknown'}</p>
+                        <p><strong>Images:</strong> ${log.image_count || 0}</p>
+                    </div>
+                    
+                    <div class="section">
+                        <h3>📝 Prompt</h3>
+                        <div class="json-display">${escapeHtml(log.prompt || 'No prompt available')}</div>
+                    </div>
+                    
+                    <div class="section">
+                        <h3>📦 Full Payload</h3>
+                        <div class="json-display">${JSON.stringify(log.payload || {}, null, 2)}</div>
+                    </div>
+                `;
+            } else if (log.type === 'RESPONSE') {
+                content += `
+                    <div class="section">
+                        <h3>⚡ Response Details</h3>
+                        <p><strong>Processing Time:</strong> ${log.processing_time || 'Unknown'}s</p>
+                        <p><strong>Token Usage:</strong> ${JSON.stringify(log.usage || {})}</p>
+                    </div>
+                    
+                    <div class="section">
+                        <h3>💬 Raw Response</h3>
+                        <div class="json-display">${escapeHtml(log.raw_text || 'No response text')}</div>
+                    </div>
+                    
+                    <div class="section">
+                        <h3>🗂️ Full Response Structure</h3>
+                        <div class="json-display">${JSON.stringify(log.response_data || {}, null, 2)}</div>
+                    </div>
+                `;
+            } else if (log.type === 'PARSING') {
+                content += `
+                    <div class="section">
+                        <h3>🔍 Parsing Attempt</h3>
+                        <p><strong>Method:</strong> ${log.parsing_method || 'Unknown'}</p>
+                        <p><strong>Success:</strong> <span class="status-${log.success ? 'success' : 'error'}">${log.success ? 'YES' : 'NO'}</span></p>
+                    </div>
+                    
+                    <div class="section">
+                        <h3>📄 Raw Text to Parse</h3>
+                        <div class="json-display">${escapeHtml(log.raw_text || 'No text available')}</div>
+                    </div>
+                    
+                    <div class="section">
+                        <h3>✅ Parsed Result</h3>
+                        <div class="json-display">${JSON.stringify(log.parsed_result || null, null, 2)}</div>
+                    </div>
+                `;
+            } else if (log.type === 'ERROR') {
+                content += `
+                    <div class="section">
+                        <h3>❌ Error Details</h3>
+                        <p><strong>Error Type:</strong> <span class="status-error">${log.error_type || 'Unknown'}</span></p>
+                        <p><strong>Error Message:</strong> ${escapeHtml(log.error_message || 'No message')}</p>
+                    </div>
+                    
+                    <div class="section">
+                        <h3>🔍 Context</h3>
+                        <div class="json-display">${JSON.stringify(log.context || {}, null, 2)}</div>
+                    </div>
+                    
+                    <div class="section">
+                        <h3>📚 Stack Trace</h3>
+                        <div class="json-display">${escapeHtml(log.stack_trace || 'No stack trace available')}</div>
+                    </div>
+                `;
+            }
+            
+            return content;
+        }
+
+        function toggleLog(index) {
+            const content = document.getElementById(`log-${index}`);
+            content.classList.toggle('expanded');
+        }
+
+        function toggleExpandAll() {
+            expandedAll = !expandedAll;
+            const contents = document.querySelectorAll('.log-content');
+            
+            contents.forEach(content => {
+                if (expandedAll) {
+                    content.classList.add('expanded');
+                } else {
+                    content.classList.remove('expanded');
+                }
+            });
+            
+            const button = document.querySelector('.expand-all');
+            button.textContent = expandedAll ? '📕 Collapse All' : '📖 Expand All';
+        }
+
+        function filterLogs() {
+            const moduleFilter = document.getElementById('moduleFilter').value;
+            const typeFilter = document.getElementById('typeFilter').value;
+            const searchText = document.getElementById('searchInput').value.toLowerCase();
+            
+            let filtered = allLogs.filter(log => {
+                const matchesModule = !moduleFilter || log.module === moduleFilter;
+                const matchesType = !typeFilter || log.type === typeFilter;
+                const matchesSearch = !searchText || 
+                    JSON.stringify(log).toLowerCase().includes(searchText);
+                
+                return matchesModule && matchesType && matchesSearch;
+            });
+            
+            displayLogs(filtered);
+            updateLogCount(filtered.length);
+        }
+
+        function clearDisplay() {
+            document.getElementById('logContainer').innerHTML = 
+                '<div class="no-logs">Display cleared. Click "Refresh Logs" to reload.</div>';
+            updateLogCount(0);
+        }
+
+        function updateLogCount(count) {
+            document.getElementById('logCount').textContent = `${count} entries`;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Set up event listeners
+        document.getElementById('moduleFilter').addEventListener('change', filterLogs);
+        document.getElementById('typeFilter').addEventListener('change', filterLogs);
+
+        // Auto-refresh every 30 seconds
+        setInterval(loadLogs, 30000);
+        
+        // Load logs on page load
+        loadLogs();
+    </script>
+</body>
+</html>
